@@ -1,0 +1,13 @@
+{
+  "captions": {
+    "name": "Captions AI",
+    "target": "https://captions.ai",
+    "cookies": {
+      "studio_login_credentials": "{%22accessToken%22:%22eyJhbGciOiJSUzI1NiIsImtpZCI6InNzb19vaWRjX2tleV9wYWlyXzAxSlRHWEVYWFQzN00yQjBZU0JSM1hWVjdOIn0.eyJjYXB0aW9uc191aWQiOiJpcEt4UnhOS3JnaXg3cGhaTlh2ZiIsImNhcHRpb25zX29yZ19pZCI6IkVhNWxYSnY3YkFmU2NyMW5xNjF5Iiwid29ya29zX2NsaWVudF9pZCI6ImNsaWVudF8wMUpUR1hFWFpNTkpaOTRYMkJKV0dYSkc5MCIsImlzcyI6Imh0dHBzOi8vYXV0aC1hcGkubWlyYWdlLmFwcCIsInN1YiI6InVzZXJfMDFLNUVHME1HOU5GMFpWMlJUV01LMzA1WlgiLCJzaWQiOiJzZXNzaW9uXzAxS01UUzVFSEMwRjI3WFpFOFozSEdDQzFLIiwianRpIjoiMDFLTVRTNUZITVA0UVRQN1QzTVhLRTk2VEEiLCJvcmdfaWQiOiJvcmdfMDFLNUVHMUg0VzBWVDdBQ0g1QUtKUzQ1Uk4iLCJyb2xlIjoiYWRtaW4iLCJyb2xlcyI6WyJhZG1pbiJdLCJwZXJtaXNzaW9ucyI6WyJvcmctdGFibGUtbWFuYWdlIiwic3Vic2NyaXB0aW9uLW1hbmFnZSIsIndpZGdldHM6dXNlcnMtdGFibGU6bWFuYWdlIl0sImV4cCI6MTc3NDcyMDYwMiwiaWF0IjoxNzc0NzIwMzAyfQ.D3br3yGWAMWn4wO6KUMu_Q2-xUPCUpRvZ_CLVGLDNU79wLcRAldv0JCFfXyezXdpad1rSq1UJxzFkFpNak3NUwLCQrXknp3zF94G9BLoE3GCxN2Fb1d94pb98Yx-xicfZBOr9yUptCCyYC4-OXlNz5eDcr0DLGU9TjTyW5IPrbSACIgYiieCpBeMjCcrNYsISHY9Rc1yyTGBO0o0wPO-kDIWDi4wEeJuFJ3HX3D98FZwGCqvAXoHI5qAzaPmXf9UUZDU0oJjtdpyz6m2KqQyRfeEWhvF39rQ01xFdru3Gj3Myk_YUeRYeQ6ekVO8l7ywihGkdlcsUxa4zKEanXT--Q%22%2C%22refreshToken%22:%22dF3WTLWthZlfEXKr2eqOVNQBw%22%2C%22userId%22:%22ipKxRxNKrgix7phZNXvf%22%2C%22isNewUser%22:false}",
+      "intercom-id-bzzhyhyn": "47a589eb-0247-4966-8991-8cdc451cad12",
+      "intercom-device-id-bzzhyhyn": "3a517cc7-6326-4f28-9594-1eb85de130f1"
+    },
+    "headers": {},
+    "enabled": true
+  }
+}
