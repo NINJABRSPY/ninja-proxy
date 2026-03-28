@@ -1,11 +1,12 @@
 """
 NinjaBR Proxy Reverso
 Proxy que permite acessar ferramentas web usando cookies armazenados.
-Deploy no Render como servico separado.
+Sistema de sessao unica: 1 usuario por vez por ferramenta.
 """
 import json
 import os
 import re
+import time
 from pathlib import Path
 from urllib.parse import urlparse, urljoin
 
@@ -15,7 +16,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, StreamingResponse
 import uvicorn
 
-app = FastAPI(title="NinjaBR Proxy", version="1.0")
+app = FastAPI(title="NinjaBR Proxy", version="2.0")
+
+# Sessoes ativas: {slug: {user_id, started_at, expires_at}}
+_sessions = {}
+SESSION_TIMEOUT = 1800  # 30 minutos de inatividade = libera sessao
 
 app.add_middleware(
     CORSMiddleware,
@@ -121,6 +126,74 @@ def remove_tool(key: str = Query(...), slug: str = Query(...)):
 
 
 # ============================================================
+# SESSAO UNICA - 1 usuario por vez por ferramenta
+# ============================================================
+
+def _clean_expired():
+    """Remove sessoes expiradas"""
+    now = time.time()
+    expired = [s for s, d in _sessions.items() if d["expires_at"] < now]
+    for s in expired:
+        del _sessions[s]
+
+
+@app.post("/session/start")
+def session_start(slug: str = Query(...), user_id: str = Query(...)):
+    """Inicia sessao - reserva ferramenta para 1 usuario"""
+    _clean_expired()
+
+    if slug in _sessions:
+        current = _sessions[slug]
+        if current["user_id"] != user_id:
+            remaining = int(current["expires_at"] - time.time())
+            return {
+                "status": "occupied",
+                "occupied_by": current["user_id"],
+                "remaining_seconds": max(0, remaining),
+                "message": f"Ferramenta em uso. Libera em {remaining // 60} min.",
+            }
+
+    _sessions[slug] = {
+        "user_id": user_id,
+        "started_at": time.time(),
+        "expires_at": time.time() + SESSION_TIMEOUT,
+    }
+    return {"status": "started", "user_id": user_id, "timeout_minutes": SESSION_TIMEOUT // 60}
+
+
+@app.post("/session/end")
+def session_end(slug: str = Query(...), user_id: str = Query(...)):
+    """Libera sessao manualmente"""
+    if slug in _sessions and _sessions[slug]["user_id"] == user_id:
+        del _sessions[slug]
+        return {"status": "ended"}
+    return {"status": "not_found"}
+
+
+@app.get("/session/status")
+def session_status(slug: str = Query(...)):
+    """Verifica status da sessao"""
+    _clean_expired()
+    if slug in _sessions:
+        s = _sessions[slug]
+        return {
+            "status": "occupied",
+            "user_id": s["user_id"],
+            "remaining_seconds": max(0, int(s["expires_at"] - time.time())),
+        }
+    return {"status": "available"}
+
+
+@app.get("/session/all")
+def session_all(key: str = Query(...)):
+    """Lista todas as sessoes ativas (admin)"""
+    if key != ADMIN_KEY:
+        raise HTTPException(403, "Chave invalida")
+    _clean_expired()
+    return {"sessions": {k: {**v, "remaining": max(0, int(v["expires_at"] - time.time()))} for k, v in _sessions.items()}}
+
+
+# ============================================================
 # PROXY - Acessa ferramentas com cookies armazenados
 # ============================================================
 
@@ -134,6 +207,17 @@ async def proxy(slug: str, path: str, request: Request):
     config = tools[slug]
     if not config.get("enabled", True):
         raise HTTPException(403, "Ferramenta desabilitada")
+
+    # Verificar sessao - quem esta usando?
+    _clean_expired()
+    user_id = request.query_params.get("user_id", request.headers.get("x-user-id", ""))
+
+    if slug in _sessions:
+        current = _sessions[slug]
+        if user_id and current["user_id"] != user_id:
+            raise HTTPException(423, f"Ferramenta em uso por outro usuario. Tente novamente em {int((current['expires_at'] - time.time()) // 60)} minutos.")
+        # Renovar timeout
+        current["expires_at"] = time.time() + SESSION_TIMEOUT
 
     target = config["target"].rstrip("/")
     url = f"{target}/{path}"

@@ -8,6 +8,7 @@
       "intercom-device-id-bzzhyhyn": "3a517cc7-6326-4f28-9594-1eb85de130f1"
     },
     "headers": {},
-    "enabled": true
+    "enabled": true,
+    "default_path": "/home?utm_medium=website&utm_source=captions&utm_content=menu"
   }
 }
