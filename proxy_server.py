@@ -245,12 +245,25 @@ async def proxy(slug: str, path: str, request: Request):
         response_headers["Access-Control-Allow-Origin"] = "*"
 
         if "text/html" in content_type:
-            # Reescrever links no HTML
             html = r.text
             parsed = urlparse(target)
             base_domain = f"{parsed.scheme}://{parsed.netloc}"
 
-            # Substituir URLs absolutas
+            # Injetar cookies + localStorage no browser do cliente
+            inject = "<script>\n"
+            for cname, cvalue in cookies.items():
+                safe_value = cvalue.replace("\\", "\\\\").replace("'", "\\'")
+                inject += f"document.cookie='{cname}={safe_value};path=/;max-age=86400;SameSite=Lax';\n"
+                # Tambem setar no localStorage (muitos SPAs usam)
+                inject += f"try{{localStorage.setItem('{cname}',decodeURIComponent('{safe_value}'));}}catch(e){{}}\n"
+            inject += "</script>\n"
+
+            if "</head>" in html:
+                html = html.replace("</head>", inject + "</head>")
+            else:
+                html = inject + html
+
+            # Reescrever URLs absolutas para passar pelo proxy
             html = html.replace(base_domain, f"/proxy/{slug}")
             html = html.replace(f'href="/', f'href="/proxy/{slug}/')
             html = html.replace(f"href='/", f"href='/proxy/{slug}/")
