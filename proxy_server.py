@@ -126,71 +126,50 @@ def remove_tool(key: str = Query(...), slug: str = Query(...)):
 
 
 # ============================================================
-# SESSAO UNICA - 1 usuario por vez por ferramenta
+# MONITORAMENTO DE USO (multiplos acessos simultaneos OK)
 # ============================================================
 
 def _clean_expired():
-    """Remove sessoes expiradas"""
+    """Remove usuarios inativos (30 min sem request)"""
     now = time.time()
-    expired = [s for s, d in _sessions.items() if d["expires_at"] < now]
-    for s in expired:
-        del _sessions[s]
-
-
-@app.post("/session/start")
-def session_start(slug: str = Query(...), user_id: str = Query(...)):
-    """Inicia sessao - reserva ferramenta para 1 usuario"""
-    _clean_expired()
-
-    if slug in _sessions:
-        current = _sessions[slug]
-        if current["user_id"] != user_id:
-            remaining = int(current["expires_at"] - time.time())
-            return {
-                "status": "occupied",
-                "occupied_by": current["user_id"],
-                "remaining_seconds": max(0, remaining),
-                "message": f"Ferramenta em uso. Libera em {remaining // 60} min.",
+    for slug in list(_sessions.keys()):
+        if isinstance(_sessions[slug], dict) and "users" in _sessions[slug]:
+            _sessions[slug]["users"] = {
+                uid: ts for uid, ts in _sessions[slug]["users"].items()
+                if now - ts < SESSION_TIMEOUT
             }
-
-    _sessions[slug] = {
-        "user_id": user_id,
-        "started_at": time.time(),
-        "expires_at": time.time() + SESSION_TIMEOUT,
-    }
-    return {"status": "started", "user_id": user_id, "timeout_minutes": SESSION_TIMEOUT // 60}
-
-
-@app.post("/session/end")
-def session_end(slug: str = Query(...), user_id: str = Query(...)):
-    """Libera sessao manualmente"""
-    if slug in _sessions and _sessions[slug]["user_id"] == user_id:
-        del _sessions[slug]
-        return {"status": "ended"}
-    return {"status": "not_found"}
 
 
 @app.get("/session/status")
-def session_status(slug: str = Query(...)):
-    """Verifica status da sessao"""
+def session_status(slug: str = Query(None)):
+    """Status de uso das ferramentas (admin)"""
     _clean_expired()
-    if slug in _sessions:
-        s = _sessions[slug]
+    if slug:
+        s = _sessions.get(slug, {"users": {}, "total_requests": 0})
         return {
-            "status": "occupied",
-            "user_id": s["user_id"],
-            "remaining_seconds": max(0, int(s["expires_at"] - time.time())),
+            "slug": slug,
+            "active_users": len(s.get("users", {})),
+            "users": list(s.get("users", {}).keys()),
+            "total_requests": s.get("total_requests", 0),
         }
-    return {"status": "available"}
+    # Todas
+    result = {}
+    for s, data in _sessions.items():
+        if isinstance(data, dict) and "users" in data:
+            result[s] = {
+                "active_users": len(data["users"]),
+                "total_requests": data.get("total_requests", 0),
+            }
+    return {"tools": result}
 
 
 @app.get("/session/all")
 def session_all(key: str = Query(...)):
-    """Lista todas as sessoes ativas (admin)"""
+    """Detalhes de todas sessoes (admin)"""
     if key != ADMIN_KEY:
         raise HTTPException(403, "Chave invalida")
     _clean_expired()
-    return {"sessions": {k: {**v, "remaining": max(0, int(v["expires_at"] - time.time()))} for k, v in _sessions.items()}}
+    return {"sessions": _sessions}
 
 
 # ============================================================
@@ -208,16 +187,13 @@ async def proxy(slug: str, path: str, request: Request):
     if not config.get("enabled", True):
         raise HTTPException(403, "Ferramenta desabilitada")
 
-    # Verificar sessao - quem esta usando?
+    # Registrar acesso (sem bloquear - multiplos acessos permitidos)
     _clean_expired()
-    user_id = request.query_params.get("user_id", request.headers.get("x-user-id", ""))
-
-    if slug in _sessions:
-        current = _sessions[slug]
-        if user_id and current["user_id"] != user_id:
-            raise HTTPException(423, f"Ferramenta em uso por outro usuario. Tente novamente em {int((current['expires_at'] - time.time()) // 60)} minutos.")
-        # Renovar timeout
-        current["expires_at"] = time.time() + SESSION_TIMEOUT
+    user_id = request.query_params.get("user_id", request.headers.get("x-user-id", "anonymous"))
+    if slug not in _sessions:
+        _sessions[slug] = {"users": {}, "total_requests": 0}
+    _sessions[slug]["users"][user_id] = time.time()
+    _sessions[slug]["total_requests"] += 1
 
     target = config["target"].rstrip("/")
     url = f"{target}/{path}"
